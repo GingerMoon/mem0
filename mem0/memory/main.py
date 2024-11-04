@@ -188,7 +188,7 @@ class Memory(MemoryBase):
 
         returned_memories = []
         try:
-            for resp in new_memories_with_actions["memory"]:
+            for resp in new_memories_with_actions:
                 logging.info(resp)
                 try:
                     if resp["event"] == "ADD":
@@ -635,5 +635,29 @@ class Memory(MemoryBase):
         self.db.reset()
         capture_event("mem0.reset", self)
 
-    def chat(self, query):
-        raise NotImplementedError("Chat function not implemented yet.")
+    def chat(self, system_prompt, query, user_id, run_id):
+        search_results = self.search(query, user_id, run_id=run_id, limit=1)
+        logging.error(f"search_results: {search_results}")
+
+        facts = []
+        for r in search_results["results"]:
+            facts.append(r["memory"])
+        if len(facts) > 0:
+            system_prompt = system_prompt + "\n facts: \n" + json.dumps(facts, ensure_ascii=False)
+
+        if 'relations' in search_results:
+            system_prompt = system_prompt + "\n graph entities relations: \n" + json.dumps(search_results["relations"], ensure_ascii=False)
+
+        response = self.llm.generate_response(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": query},
+            ],
+            # response_format={"type": "json_object"},
+        )
+        # data = json.loads(response)
+        # if 'answer' in data:
+        #     return data['answer']
+        # if '回答' in data:
+        #     return data['回答']
+        return response

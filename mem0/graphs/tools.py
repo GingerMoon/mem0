@@ -122,7 +122,7 @@ ADD_MESSAGE_TOOL = {
 SEARCH_TOOL = {
     "type": "function",
     "function": {
-        "name": "search",
+        "name": "search_",
         "description": "Search for nodes and relations in the graph.",
         "parameters": {
             "type": "object",
@@ -272,7 +272,7 @@ ADD_MESSAGE_STRUCT_TOOL = {
 SEARCH_STRUCT_TOOL = {
     "type": "function",
     "function": {
-        "name": "search",
+        "name": "search_",
         "description": "Search for nodes and relations in the graph.",
         "strict": True,
         "parameters": {

@@ -12,15 +12,10 @@ except ImportError:
 
 from mem0.graphs.tools import (
     ADD_MEMORY_STRUCT_TOOL_GRAPH,
-    ADD_MEMORY_TOOL_GRAPH,
     ADD_MESSAGE_STRUCT_TOOL,
-    ADD_MESSAGE_TOOL,
     NOOP_STRUCT_TOOL,
-    NOOP_TOOL,
     SEARCH_STRUCT_TOOL,
-    SEARCH_TOOL,
     UPDATE_MEMORY_STRUCT_TOOL_GRAPH,
-    UPDATE_MEMORY_TOOL_GRAPH,
 )
 from mem0.graphs.utils import EXTRACT_ENTITIES_PROMPT, get_update_memory_messages
 from mem0.utils.factory import EmbedderFactory, LlmFactory
@@ -79,9 +74,10 @@ class MemoryGraph:
                 {"role": "user", "content": data},
             ]
 
-        _tools = [ADD_MESSAGE_TOOL]
-        if self.llm_provider in ["azure_openai_structured", "openai_structured"]:
-            _tools = [ADD_MESSAGE_STRUCT_TOOL]
+        _tools = [ADD_MESSAGE_STRUCT_TOOL]
+        # _tools = [ADD_MESSAGE_TOOL]
+        # if self.llm_provider in ["azure_openai_structured", "openai_structured"]:
+        #     _tools = [ADD_MESSAGE_STRUCT_TOOL]
 
         extracted_entities = self.llm.generate_response(
             messages=messages,
@@ -95,35 +91,40 @@ class MemoryGraph:
 
         logger.debug(f"Extracted entities: {extracted_entities}")
 
-        update_memory_prompt = get_update_memory_messages(search_output, extracted_entities)
+        to_be_added = []
+        for e in extracted_entities:
+            update_memory_prompt = get_update_memory_messages(search_output, e)
 
-        _tools = [UPDATE_MEMORY_TOOL_GRAPH, ADD_MEMORY_TOOL_GRAPH, NOOP_TOOL]
-        if self.llm_provider in ["azure_openai_structured", "openai_structured"]:
+            # _tools = [UPDATE_MEMORY_TOOL_GRAPH, ADD_MEMORY_TOOL_GRAPH, NOOP_TOOL]
+            # if self.llm_provider in ["azure_openai_structured", "openai_structured"]:
+            #     _tools = [
+            #         UPDATE_MEMORY_STRUCT_TOOL_GRAPH,
+            #         ADD_MEMORY_STRUCT_TOOL_GRAPH,
+            #         NOOP_STRUCT_TOOL,
+            #     ]
             _tools = [
                 UPDATE_MEMORY_STRUCT_TOOL_GRAPH,
                 ADD_MEMORY_STRUCT_TOOL_GRAPH,
                 NOOP_STRUCT_TOOL,
             ]
 
-        memory_updates = self.llm.generate_response(
-            messages=update_memory_prompt,
-            tools=_tools,
-        )
+            memory_updates = self.llm.generate_response(
+                messages=update_memory_prompt,
+                tools=_tools,
+            )
 
-        to_be_added = []
-
-        for item in memory_updates["tool_calls"]:
-            if item["name"] == "add_graph_memory":
-                to_be_added.append(item["arguments"])
-            elif item["name"] == "update_graph_memory":
-                self._update_relationship(
-                    item["arguments"]["source"],
-                    item["arguments"]["destination"],
-                    item["arguments"]["relationship"],
-                    filters,
-                )
-            elif item["name"] == "noop":
-                continue
+            for item in memory_updates["tool_calls"]:
+                if item["name"] == "add_graph_memory":
+                    to_be_added.append(item["arguments"])
+                elif item["name"] == "update_graph_memory":
+                    self._update_relationship(
+                        item["arguments"]["source"],
+                        item["arguments"]["destination"],
+                        item["arguments"]["relationship"],
+                        filters,
+                    )
+                elif item["name"] == "noop":
+                    continue
 
         returned_entities = []
 
@@ -168,14 +169,15 @@ class MemoryGraph:
         return returned_entities
 
     def _search(self, query, filters, limit=100):
-        _tools = [SEARCH_TOOL]
-        if self.llm_provider in ["azure_openai_structured", "openai_structured"]:
-            _tools = [SEARCH_STRUCT_TOOL]
+        # _tools = [SEARCH_TOOL]
+        # if self.llm_provider in ["azure_openai_structured", "openai_structured"]:
+        #     _tools = [SEARCH_STRUCT_TOOL]
+        _tools = [SEARCH_STRUCT_TOOL]
         search_results = self.llm.generate_response(
             messages=[
                 {
                     "role": "system",
-                    "content": f"You are a smart assistant who understands the entities, their types, and relations in a given text. If user message contains self reference such as 'I', 'me', 'my' etc. then use {filters['user_id']} as the source node. Extract the entities.",
+                    "content": f"You are a smart assistant who understands the entities, their types, and relations in a given text. If user message contains self reference such as 'I', 'me', 'my' etc. then use {filters['user_id']} as the source node. Extract the entities. ***DO NOT*** answer the question itself. ",
                 },
                 {"role": "user", "content": query},
             ],
@@ -185,7 +187,7 @@ class MemoryGraph:
         node_list = []
 
         for item in search_results["tool_calls"]:
-            if item["name"] == "search":
+            if item["name"] == "search_":
                 try:
                     node_list.extend(item["arguments"]["nodes"])
                 except Exception as e:
